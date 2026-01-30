@@ -1,0 +1,120 @@
+# Production Docker Compose for Clawdbot
+# Optimized for VPS deployment with Dokploy
+
+services:
+  clawdbot-gateway:
+    image: clawdbot:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    container_name: clawdbot-gateway
+    hostname: clawdbot-gateway
+
+    env_file:
+      - .env
+
+    environment:
+      # Runtime
+      - HOME=/home/node
+      - NODE_ENV=production
+      - TERM=xterm-256color
+      - TZ=Asia/Bangkok  # Change to your timezone
+
+      # Gateway settings
+      - CLAWDBOT_GATEWAY_BIND=${CLAWDBOT_GATEWAY_BIND:-lan}
+      - CLAWDBOT_GATEWAY_PORT=${CLAWDBOT_GATEWAY_PORT:-18789}
+      - CLAWDBOT_GATEWAY_TOKEN=${CLAWDBOT_GATEWAY_TOKEN}
+
+      # Persistence
+      - CLAWDBOT_CONFIG_DIR=/home/node/.clawdbot
+      - CLAWDBOT_WORKSPACE_DIR=/home/node/clawd
+
+      # External tools
+      - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD}
+      - XDG_CONFIG_HOME=/home/node/.clawdbot
+
+      # PATH for external binaries
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/node/.npm-global/bin
+
+    volumes:
+      # Persistent storage
+      - ${CLAWDBOT_CONFIG_DIR:-./data/config}:/home/node/.clawdbot
+      - ${CLAWDBOT_WORKSPACE_DIR:-./data/workspace}:/home/node/clawd
+      - ./data/skills:/home/node/.clawdbot/skills
+
+      # Optional: Mount host timezone
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+
+    ports:
+      # Gateway port (localhost only, use reverse proxy for public access)
+      - "127.0.0.1:${CLAWDBOT_GATEWAY_PORT:-18789}:18789"
+
+      # Optional: Canvas port (uncomment if using remote nodes)
+      # - "127.0.0.1:18793:18793"
+
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18789/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+
+    # Read-only root filesystem (except specific paths)
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/node/.npm
+
+    command:
+      [
+        "node",
+        "dist/index.js",
+        "gateway",
+        "--bind",
+        "${CLAWDBOT_GATEWAY_BIND:-lan}",
+        "--port",
+        "${CLAWDBOT_GATEWAY_PORT:-18789}"
+      ]
+
+  # Optional: Redis for caching (uncomment if needed)
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   container_name: clawdbot-redis
+  #   volumes:
+  #     - ./data/redis:/data
+  #   command: redis-server --appendonly yes
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+
+# Networks
+networks:
+  default:
+    name: clawdbot-network
+    driver: bridge
