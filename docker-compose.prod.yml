@@ -1,5 +1,6 @@
-# Production Docker Compose for Clawdbot with Traefik
-# Optimized for Dokploy with custom domain and password protection
+# Production Docker Compose for Clawdbot with Dokploy
+# Optimized for Dokploy - domain and HTTPS handled by Dokploy
+# This only adds password protection to the Gateway dashboard
 
 services:
   clawdbot-gateway:
@@ -48,47 +49,31 @@ services:
       - /etc/localtime:/etc/localtime:ro
 
     ports:
-      # Gateway port (internal, Traefik will handle external routing)
-      - "127.0.0.1:18789:18789"
+      # Gateway port (Dokploy will handle external routing)
+      - "127.0.0.1:${CLAWDBOT_GATEWAY_PORT:-18789}:18789"
 
-    # === TRAEFIK CONFIGURATION ===
-    # Dokploy uses Traefik as reverse proxy
-    # These labels configure Traefik routing
+    # === TRAEFIK PASSWORD PROTECTION ===
+    # Dokploy handles domain and HTTPS automatically
+    # These labels only add basic auth password protection
 
     labels:
       # Enable Traefik for this service
       - "traefik.enable=true"
-
-      # HTTP router (redirect to HTTPS)
-      - "traefik.http.routers.clawdbot-gateway-http.rule=Host(`${TRAEFIK_DOMAIN}`)"
-      - "traefik.http.routers.clawdbot-gateway-http.entrypoints=web"
-      - "traefik.http.routers.clawdbot-gateway-http.middlewares=redirect-to-https"
-
-      # HTTPS router (main entry point)
-      - "traefik.http.routers.clawdbot-gateway-https.rule=Host(`${TRAEFIK_DOMAIN}`)"
-      - "traefik.http.routers.clawdbot-gateway-https.entrypoints=websecure"
-      - "traefik.http.routers.clawdbot-gateway-https.tls=true"
-      - "traefik.http.routers.clawdbot-gateway-https.tls.certresolver=letsencrypt"
-
-      # === PASSWORD PROTECTION (Optional) ===
-      # Uncomment these labels to enable basic auth
-      # Generate credentials with: htpasswd -nb admin password
-      # or use online generator: https://hostingcanada.org/htpasswd-generator
-      #
-      # - "traefik.http.routers.clawdbot-gateway-https.middlewares=clawdbot-auth"
-      # - "traefik.http.middlewares.clawdbot-auth.basicauth.users=${TRAEFIK_BASIC_AUTH}"
 
       # Service configuration
       - "traefik.http.services.clawdbot-gateway.loadbalancer.server.port=18789"
       - "traefik.http.services.clawdbot-gateway.loadbalancer.server.scheme=http"
 
       # WebSocket support (required for Clawdbot Gateway)
-      - "traefik.http.routers.clawdbot-gateway-https.middlewares=clawdbot-websocket"
       - "traefik.http.middlewares.clawdbot-websocket.headers.customrequestheaders.X-Forwarded-Proto=https"
 
-      # HTTP to HTTPS redirect
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+      # === PASSWORD PROTECTION (Optional) ===
+      # Uncomment these labels to enable basic auth
+      # Generate credentials with: htpasswd -nb admin password
+      # Or use: https://hostingcanada.org/htpasswd-generator
+      #
+      # - "traefik.http.routers.clawdbot-gateway.middlewares=clawdbot-auth"
+      # - "traefik.http.middlewares.clawdbot-auth.basicauth.users=${TRAEFIK_BASIC_AUTH}"
 
     deploy:
       mode: replicated

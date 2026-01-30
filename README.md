@@ -1,11 +1,19 @@
 # Clawdbot VPS Deployment
 
-Complete Docker Compose deployment files for Clawdbot Gateway, optimized for **Dokploy + Traefik**.
+Complete Docker Compose deployment files for Clawdbot Gateway, optimized for **Dokploy**.
 
 ## 🚀 Quick Start
 
-For fast deployment with custom domain and password protection, read:
-**[QUICK-START.md](QUICK-START.md)** ← Start here!
+For password protection setup, read:
+**[PASSWORD-PROTECTION.md](PASSWORD-PROTECTION.md)** ← Password protection guide!
+
+Dokploy handles:
+- ✅ Custom domain routing
+- ✅ HTTPS/SSL certificates (Let's Encrypt)
+- ✅ HTTP to HTTPS redirect
+
+This repository adds:
+- 🔐 Password protection for dashboard access
 
 ## 📋 Files Overview
 
@@ -14,7 +22,7 @@ For fast deployment with custom domain and password protection, read:
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | Standard Docker Compose (development/testing) |
-| `docker-compose.prod.yml` | Production with **Traefik labels** ✨ |
+| `docker-compose.prod.yml` | Production with **password protection** (minimal Traefik) |
 | `Dockerfile` | Build image with baked-in binaries |
 
 ### Environment Templates
@@ -23,38 +31,64 @@ For fast deployment with custom domain and password protection, read:
 |------|---------|
 | `.env.example` | Basic environment template |
 | `.env.production` | Production environment template |
-| `.env.traefik` | **Traefik-specific** template with password protection 🔐 |
+| `.env.traefik` | Environment with password protection variable |
 
 ### Documentation
 
 | File | Purpose |
 |------|---------|
-| `QUICK-START.md` | 🚀 **Start here!** Fast-track guide |
-| `TRAEfIK.md` | Complete Traefik deployment guide |
+| `PASSWORD-PROTECTION.md` | 📖 **Password protection guide** ← Read this! |
+| `QUICK-START.md` | Quick deployment overview |
 | `DOKPLOY.md` | General Dokploy guide |
 | `DEPLOYMENT.md` | General VPS deployment guide |
 | `VPS-DEPLOYMENT-FILES.md` | Complete file overview |
 
-### Scripts
+### Scripts & Config
 
 | File | Purpose |
 |------|---------|
 | `setup-vps.sh` | Automated VPS setup script |
 | `.dockerignore` | Clean Docker builds |
 
+## 🔐 Password Protection
+
+Dokploy automatically configures domain and HTTPS. This repository adds:
+
+**Optional basic auth password protection** to prevent unauthorized dashboard access.
+
+### Setup Steps:
+
+1. **Generate password hash:**
+   ```bash
+   htpasswd -nb admin yourpassword
+   # Or use: https://hostingcanada.org/htpasswd-generator
+   ```
+
+2. **Enable in docker-compose.prod.yml:**
+   ```yaml
+   labels:
+     # Uncomment these lines:
+     - "traefik.http.routers.clawdbot-gateway.middlewares=clawdbot-auth"
+     - "traefik.http.middlewares.clawdbot-auth.basicauth.users=${TRAEFIK_BASIC_AUTH}"
+   ```
+
+3. **Add to Dokploy environment:**
+   ```bash
+   TRAEFIK_BASIC_AUTH=admin:$apr1$hashhashhash...
+   ```
+
+4. **Redeploy**
+
+Complete guide: **[PASSWORD-PROTECTION.md](PASSWORD-PROTECTION.md)**
+
 ## ✨ Features
 
 ### docker-compose.prod.yml Includes:
 
-✅ **Traefik Integration**
-- Automatic HTTPS (Let's Encrypt)
-- HTTP to HTTPS redirect
-- Custom domain routing
+✅ **Minimal Traefik Labels**
+- Only password protection (domain/HTTPS handled by Dokploy)
 - WebSocket support (required for Clawdbot)
-
-✅ **Password Protection** (Optional)
-- Basic auth support
-- Easy enable/disable
+- Simple enable/disable
 
 ✅ **Production Hardened**
 - Security settings (read-only, no-new-privileges)
@@ -66,50 +100,20 @@ For fast deployment with custom domain and password protection, read:
 ✅ **Baked-in Binaries**
 - gog (Gmail/Calendar/Drive/Sheets)
 - mcporter (MCP)
-- Extensible for more skills
+
+## 🛡️ Security Layers
+
+With password protection enabled:
+
+1. **Basic Auth** (username + password)
+2. **Gateway Token** (API access)
+
+Without password protection:
+- Gateway token only (single layer)
 
 ## 🔗 Repository
 
 **GitHub:** https://github.com/gnoviawan/moltbot-vps-deployment
-
-## 📚 Deployment Guides
-
-### 1. Quick Start (Recommended)
-Read **[QUICK-START.md](QUICK-START.md)** for step-by-step setup with:
-- Custom domain configuration
-- Password protection
-- Environment variable setup
-
-### 2. Traefik + Custom Domain
-Read **[TRAEfIK.md](TRAEfIK.md)** for:
-- Complete Traefik configuration
-- Enable/disable password protection
-- Multiple domains support
-- Troubleshooting
-
-### 3. General Dokploy
-Read **[DOKPLOY.md](DOKPLOY.md)** for:
-- Git repository deployment
-- Manual file upload
-- Backup configuration
-
-### 4. General VPS
-Read **[DEPLOYMENT.md](DEPLOYMENT.md)** for:
-- Manual VPS setup
-- SSH tunnel access
-- Binary installation
-
-## 🛡️ Security Checklist
-
-Before deploying, ensure:
-
-- [ ] Generate strong `CLAWDBOT_GATEWAY_TOKEN` (32+ chars)
-- [ ] Generate strong `GOG_KEYRING_PASSWORD` (32+ chars)
-- [ ] Point DNS to VPS IP
-- [ ] Set `TRAEFIK_DOMAIN` correctly
-- [ ] Enable password protection if needed
-- [ ] Configure backup strategy
-- [ ] Test HTTPS certificate
 
 ## 📝 Environment Variables
 
@@ -118,16 +122,18 @@ Before deploying, ensure:
 ```bash
 CLAWDBOT_GATEWAY_TOKEN=<random-32-char-hex>
 GOG_KEYRING_PASSWORD=<random-32-char-hex>
-TRAEFIK_DOMAIN=clawbot.yourdomain.com
+CLAWDBOT_GATEWAY_BIND=lan
+CLAWDBOT_GATEWAY_PORT=18789
+CLAWDBOT_CONFIG_DIR=/opt/clawdbot/config
+CLAWDBOT_WORKSPACE_DIR=/opt/clawdbot/workspace
 ```
 
 ### Optional (Password Protection)
 
 ```bash
-TRAEFIK_BASIC_AUTH=admin:$apr1$hash
+# Generate with: htpasswd -nb admin password
+TRAEFIK_BASIC_AUTH=admin:$apr1$generatedhashhere
 ```
-
-Generate with: `htpasswd -nb admin password` or [online generator](https://hostingcanada.org/htpasswd-generator)
 
 ### Provider Keys
 
@@ -140,13 +146,12 @@ DISCORD_TOKEN=...
 
 ## 🚀 Deployment Steps
 
-### Via Dokploy (Recommended)
+### Via Dokploy
 
 1. Create application from Git repository
 2. Configure environment variables
-3. Deploy!
-
-Full guide: **[QUICK-START.md](QUICK-START.md)**
+3. (Optional) Enable password protection: See [PASSWORD-PROTECTION.md](PASSWORD-PROTECTION.md)
+4. Deploy!
 
 ### Manual
 
@@ -159,39 +164,23 @@ docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-## 📦 What's Included
+## 📚 Documentation Guide
 
-### Binaries Baked into Image
-
-- **gog** - Gmail CLI (for Sheets/Calendar/Drive)
-- **mcporter** - MCP servers
-
-### Volumes (Persistent)
-
-- `/opt/clawdbot/config` - Gateway config & credentials
-- `/opt/clawdbot/workspace` - Agent workspace & memory
-- `/opt/clawdbot/skills` - Skill-specific data
-
-### Ports
-
-- **18789** - Gateway HTTP/WebSocket (internal, Traefik handles external)
+- **[PASSWORD-PROTECTION.md](PASSWORD-PROTECTION.md)** ← Start here! Password protection
+- **[QUICK-START.md](QUICK-START.md)** - Quick deployment overview
+- **[DOKPLOY.md](DOKPLOY.md)** - General Dokploy guide
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - General VPS deployment
+- **[VPS-DEPLOYMENT-FILES.md](VPS-DEPLOYMENT-FILES.md)** - File overview
 
 ## 🆘 Support
 
 - **Dokploy:** https://dokploy.com/docs
-- **Traefik:** https://doc.traefik.io/traefik
 - **Clawdbot:** https://docs.clawd.bot
 - **GitHub Issues:** https://github.com/clawdbot/clawdbot/issues
 - **Community:** https://discord.gg/clawd
-
-## 📄 License
-
-This deployment configuration is for Clawdbot Gateway.
-
-**Clawdbot:** https://github.com/clawdbot/clawdbot
 
 ---
 
 **Happy deploying!** 🎉
 
-For questions or issues, please check the documentation files or open a GitHub issue.
+For questions or issues, please check the documentation files.
